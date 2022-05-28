@@ -4,10 +4,11 @@
 #include<iostream>
 #include<Windows.h>
 
-#pragma region 1
-
 #define WIDTH 1280
 #define HEIGHT 1024
+
+#define MAX_BULLETS_FOR_PISTOL 15
+#define MAX_ZOMBIE 100
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
@@ -114,8 +115,6 @@ void hideConsole(bool flag)
 	ShowWindow(hide_console, !flag);
 }
 
-#pragma endregion
-
 struct Loop {
 	bool launched = true;
 	bool menu = true;
@@ -126,6 +125,7 @@ struct Loop {
 struct Mouse {
 	int x = 0;
 	int y = 0;
+
 	bool left_button = false;
 };
 
@@ -192,64 +192,73 @@ struct Keyboard {
 struct Player {
 	int w = 64;
 	int h = 64;
-
+	
 	Direction direction = up;
 	Keyboard keyboard;
-
+	
 	int x = WIDTH / 2 - w / 2;
 	int y = HEIGHT / 2 - h / 2;
-
+	
 	SDL_Rect rect_dst = { x, y, w, h };
-
+	
 	int frame = 0;
 	int frame_count = 9;
 	int frame_current = 0;
 	int frame_max = 175;
 	bool animate = false;
-
-	int speed = 15;
+	
+	int speed = 10;
+	
+	bool life = true; //
+	
+	int hp = 100; //
 };
 
 struct Bullet {
 	int w = 10;
 	int h = 10;
-
-	double alpha = 0;
-
-	bool life = false;
-
+	
 	SDL_Rect rect_dst = { 0, 0, w, h };
+	
+	double alpha = 0;
+	
+	bool life = false;
 };
 
 struct Pistol {
-	const int bullet_max = 15;
-	Bullet bullet[15];
+	Bullet bullet[MAX_BULLETS_FOR_PISTOL];
+	
 	int speed = 25;
+	
+	int delay = 19;
+	
 	int damage = 25;
-	int delay = 9;
 };
 
 struct Zombie {
 	int w = 64;
 	int h = 64;
-
+	
 	Direction direction = up;
-
-	int x = rand() % WIDTH;
-	int y = rand() % HEIGHT;
-
-	SDL_Rect rect_dst{ x, y, w, h };
-
+	
+	SDL_Rect rect_dst{ 0, 0, w, h };
+	
 	int frame = 0;
 	int frame_count = 4;
 	int frame_current = 0;
 	int frame_max = 175;
+	
+	int speed = 3;
+	
+	bool life = false;
+	
+	int current_hp = 0;
+	int max_hp = 100;
 
-	int speed = 5;
+	//int current = MAX_ZOMBIE / 10;
+	int current = 1;
 
 	float alpha = 0;
-
-	int hp = 100;
 };
 
 struct Game {
@@ -265,11 +274,11 @@ struct Game {
 
 	Pistol pistol;
 
-	Zombie zombie[10];
+	Zombie zombie[MAX_ZOMBIE];
 
 	SDL_Event event;
 
-	const int fps = 30;
+	const int fps = 60;
 };
 
 void events(Game& game)
@@ -438,61 +447,13 @@ void drawPlayer(Game game)
 	if (game.player.direction == left) SDL_RenderCopy(renderer, game.png.player_left_texture, &game.png.player_left_rect, &game.player.rect_dst);
 }
 
-void logicZombie(Game& game)
-{	
-	for (int i = 0; i < 10; i++)
-	{
-		if (game.zombie[i].rect_dst.y > game.player.rect_dst.y + game.player.h / 2 or
-			game.zombie[i].rect_dst.y + game.zombie->h / 2 < game.player.rect_dst.y or
-			game.zombie[i].rect_dst.x > game.player.rect_dst.x + game.player.w / 2 or
-			game.zombie[i].rect_dst.x + game.zombie->w / 2 < game.player.x)
-		{
-			int dlt_x = game.zombie[i].rect_dst.x;
-			int dlt_y = game.zombie[i].rect_dst.y;
-
-			game.zombie[i].alpha = atan2(game.player.rect_dst.y - game.zombie[i].rect_dst.y, game.player.rect_dst.x - game.zombie[i].rect_dst.x);
-			game.zombie[i].rect_dst.x += cos(game.zombie[i].alpha) * game.zombie->speed;
-			game.zombie[i].rect_dst.y += sin(game.zombie[i].alpha) * game.zombie->speed;
-
-			dlt_x = dlt_x - game.zombie[i].rect_dst.x;
-			dlt_y = dlt_y - game.zombie[i].rect_dst.y;
-
-			if (dlt_y > dlt_x and dlt_y > game.zombie->speed / 2) game.zombie[i].direction = up;
-			if (dlt_y < dlt_x and dlt_y < -(game.zombie->speed / 2)) game.zombie[i].direction = down;
-			if (dlt_x < dlt_y and dlt_x < -(game.zombie->speed / 2)) game.zombie[i].direction = right;
-			if (dlt_x > dlt_y and dlt_x > game.zombie->speed / 2) game.zombie[i].direction = left;
-		}
-		game.zombie[i].frame_current += game.time.dlt;
-		if (game.zombie[i].frame_current > game.zombie->frame_max)
-		{
-			game.zombie[i].frame_current -= game.zombie->frame_max;
-			game.zombie[i].frame = (game.zombie[i].frame + 1) % game.zombie->frame_count;
-			if (game.zombie[i].direction == up) game.png.zombie_up_rect.x = game.png.zombie_up_rect.w * game.zombie[i].frame;
-			if (game.zombie[i].direction == down) game.png.zombie_down_rect.x = game.png.zombie_down_rect.w * game.zombie[i].frame;
-			if (game.zombie[i].direction == right) game.png.zombie_right_rect.x = game.png.zombie_right_rect.w * game.zombie[i].frame;
-			if (game.zombie[i].direction == left) game.png.zombie_left_rect.x = game.png.zombie_left_rect.w * game.zombie[i].frame;
-		}
-	}
-}
-
-void drawZombie(Game& game)
-{
-	for (int i = 0; i < 10; i++)
-	{
-		if (game.zombie[i].direction == up) SDL_RenderCopy(renderer, game.png.zombie_up_texture, &game.png.zombie_up_rect, &game.zombie[i].rect_dst);
-		if (game.zombie[i].direction == down) SDL_RenderCopy(renderer, game.png.zombie_down_texture, &game.png.zombie_down_rect, &game.zombie[i].rect_dst);
-		if (game.zombie[i].direction == right) SDL_RenderCopy(renderer, game.png.zombie_right_texture, &game.png.zombie_right_rect, &game.zombie[i].rect_dst);
-		if (game.zombie[i].direction == left) SDL_RenderCopy(renderer, game.png.zombie_left_texture, &game.png.zombie_left_rect, &game.zombie[i].rect_dst);
-	}
-}
-
 void logicBulletsForPistol(Game& game)
 {
 	static int delay = 0;
 
 	if (game.mouse.left_button and delay == game.pistol.delay)
 	{
-		for (int i = 0; i < game.pistol.bullet_max; i++)
+		for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
 			if (!game.pistol.bullet[i].life)
 			{
 				game.pistol.bullet[i].rect_dst.x = game.player.x + game.player.w / 2;
@@ -507,22 +468,112 @@ void logicBulletsForPistol(Game& game)
 	if (delay >= game.pistol.delay) delay = game.pistol.delay;
 	else delay++;
 
-	for (int i = 0; i < game.pistol.bullet_max; i++)
+	for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
 	{
 		if (game.pistol.bullet[i].life)
 		{
 			game.pistol.bullet[i].rect_dst.x += cos(game.pistol.bullet[i].alpha) * game.pistol.speed;
 			game.pistol.bullet[i].rect_dst.y += sin(game.pistol.bullet[i].alpha) * game.pistol.speed;
+
+			if (game.pistol.bullet[i].rect_dst.x > WIDTH or game.pistol.bullet[i].rect_dst.y > HEIGHT or
+				game.pistol.bullet[i].rect_dst.x + game.pistol.bullet->w < 0 or game.pistol.bullet[i].rect_dst.y + game.pistol.bullet->h < 0) game.pistol.bullet[i].life = false;
+
+			// zombie
+			for (int j = 0; j < game.zombie->current; j++)
+			{
+				if (game.pistol.bullet[i].rect_dst.x > game.zombie[j].rect_dst.x and game.pistol.bullet[i].rect_dst.x < game.zombie[j].rect_dst.x + game.zombie->w and
+					game.pistol.bullet[i].rect_dst.y > game.zombie[j].rect_dst.y and game.pistol.bullet[i].rect_dst.y < game.zombie[j].rect_dst.y + game.zombie->h)
+				{
+					game.zombie[j].current_hp -= game.pistol.damage;
+					printf("hit - %i\n", game.zombie[j].current_hp);
+					game.pistol.bullet[i].life = false;
+					break;
+				}
+			}
+			// zombie
 		}
-		if (game.pistol.bullet[i].rect_dst.x > WIDTH or game.pistol.bullet[i].rect_dst.y > HEIGHT or
-			game.pistol.bullet[i].rect_dst.x + game.pistol.bullet->w < 0 or game.pistol.bullet[i].rect_dst.y + game.pistol.bullet->h < 0) game.pistol.bullet[i].life = false;
 	}
 }
 
 void drawBulletsForPistol(Game game)
 {
-	for (int i = 0; i < game.pistol.bullet_max; i++)
+	for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
 		if (game.pistol.bullet[i].life) SDL_RenderCopy(renderer, game.png.bullet_texture, &game.png.bullet_rect, &game.pistol.bullet[i].rect_dst);
+}
+
+void logicZombie(Game& game)
+{	
+	for (int i = 0; i < game.zombie->current; i++)
+	{
+		if (!game.zombie[i].life)
+		{
+			game.zombie[i].life = true;
+			if (rand() % 2 == 1) game.zombie[i].rect_dst.x = -game.zombie->w;
+			else game.zombie[i].rect_dst.x = WIDTH;
+			if (rand() % 2 == 1) game.zombie[i].rect_dst.y = -game.zombie->h;
+			else game.zombie[i].rect_dst.y = HEIGHT;
+			game.zombie[i].current_hp = game.zombie->max_hp;
+		}
+	}
+
+	for (int i = 0; i < game.zombie->current; i++)
+	{
+		if (game.zombie[i].current_hp <= 0)
+		{
+			printf("zombie died\n");
+			game.zombie[i].life = false;
+		}
+
+		if (game.zombie[i].life)
+		{
+
+
+			if (game.zombie[i].rect_dst.y > game.player.rect_dst.y + game.player.h / 2 or
+				game.zombie[i].rect_dst.y + game.zombie->h / 2 < game.player.rect_dst.y or
+				game.zombie[i].rect_dst.x > game.player.rect_dst.x + game.player.w / 2 or
+				game.zombie[i].rect_dst.x + game.zombie->w / 2 < game.player.x)
+			{
+				int dlt_x = game.zombie[i].rect_dst.x;
+				int dlt_y = game.zombie[i].rect_dst.y;
+
+				game.zombie[i].alpha = atan2(game.player.rect_dst.y - game.zombie[i].rect_dst.y, game.player.rect_dst.x - game.zombie[i].rect_dst.x);
+				game.zombie[i].rect_dst.x += cos(game.zombie[i].alpha) * game.zombie->speed;
+				game.zombie[i].rect_dst.y += sin(game.zombie[i].alpha) * game.zombie->speed;
+
+				dlt_x = dlt_x - game.zombie[i].rect_dst.x;
+				dlt_y = dlt_y - game.zombie[i].rect_dst.y;
+
+				if (dlt_y > dlt_x and dlt_y > game.zombie->speed / 2) game.zombie[i].direction = up;
+				if (dlt_y < dlt_x and dlt_y < -(game.zombie->speed / 2)) game.zombie[i].direction = down;
+				if (dlt_x < dlt_y and dlt_x < -(game.zombie->speed / 2)) game.zombie[i].direction = right;
+				if (dlt_x > dlt_y and dlt_x > game.zombie->speed / 2) game.zombie[i].direction = left;
+			}
+			game.zombie[i].frame_current += game.time.dlt;
+			if (game.zombie[i].frame_current > game.zombie->frame_max)
+			{
+				game.zombie[i].frame_current -= game.zombie->frame_max;
+				game.zombie[i].frame = (game.zombie[i].frame + 1) % game.zombie->frame_count;
+				if (game.zombie[i].direction == up) game.png.zombie_up_rect.x = game.png.zombie_up_rect.w * game.zombie[i].frame;
+				if (game.zombie[i].direction == down) game.png.zombie_down_rect.x = game.png.zombie_down_rect.w * game.zombie[i].frame;
+				if (game.zombie[i].direction == right) game.png.zombie_right_rect.x = game.png.zombie_right_rect.w * game.zombie[i].frame;
+				if (game.zombie[i].direction == left) game.png.zombie_left_rect.x = game.png.zombie_left_rect.w * game.zombie[i].frame;
+			}
+		}
+	}
+}
+
+void drawZombie(Game& game)
+{
+	for (int i = 0; i < game.zombie->current; i++)
+	{
+		if (game.zombie[i].life)
+		{
+			if (game.zombie[i].direction == up) SDL_RenderCopy(renderer, game.png.zombie_up_texture, &game.png.zombie_up_rect, &game.zombie[i].rect_dst);
+			if (game.zombie[i].direction == down) SDL_RenderCopy(renderer, game.png.zombie_down_texture, &game.png.zombie_down_rect, &game.zombie[i].rect_dst);
+			if (game.zombie[i].direction == right) SDL_RenderCopy(renderer, game.png.zombie_right_texture, &game.png.zombie_right_rect, &game.zombie[i].rect_dst);
+			if (game.zombie[i].direction == left) SDL_RenderCopy(renderer, game.png.zombie_left_texture, &game.png.zombie_left_rect, &game.zombie[i].rect_dst);
+		}
+	}
 }
 
 void playLoop(Game& game)
@@ -532,11 +583,10 @@ void playLoop(Game& game)
 
 	logicPlayer(game);
 	logicBulletsForPistol(game);
+	logicZombie(game);
 
 	drawPlayer(game);
 	drawBulletsForPistol(game);
-
-	logicZombie(game);
 	drawZombie(game);
 }
 
@@ -544,6 +594,8 @@ void playLoop(Game& game)
 int main()
 {
 	hideConsole(false);
+
+	srand(time(NULL));
 
 	init();
 
