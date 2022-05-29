@@ -664,6 +664,40 @@ void playLoop(Game& game)
 	drawZombie(game);
 }
 
+void pngRect(Game& game)
+{
+	game.png.player_up_rect.w = game.player.w;
+	game.png.player_down_rect.w = game.player.w;
+	game.png.player_right_rect.w = game.player.w;
+	game.png.player_left_rect.w = game.player.w;
+
+	game.png.zombie_up_rect.w = game.zombie->w;
+	game.png.zombie_down_rect.w = game.zombie->w;
+	game.png.zombie_right_rect.w = game.zombie->w;
+	game.png.zombie_left_rect.w = game.zombie->w;
+}
+
+void destroyTexture(Game& game)
+{
+	SDL_DestroyTexture(game.png.play_texture);
+	SDL_DestroyTexture(game.png.info_texture);
+	SDL_DestroyTexture(game.png.exit_texture);
+	SDL_DestroyTexture(game.png.menu_texture);
+	SDL_DestroyTexture(game.png.restart_texture);
+
+	SDL_DestroyTexture(game.png.player_up_texture);
+	SDL_DestroyTexture(game.png.player_down_texture);
+	SDL_DestroyTexture(game.png.player_right_texture);
+	SDL_DestroyTexture(game.png.player_left_texture);
+
+	SDL_DestroyTexture(game.png.bullet_texture);
+
+	SDL_DestroyTexture(game.png.zombie_up_texture);
+	SDL_DestroyTexture(game.png.zombie_down_texture);
+	SDL_DestroyTexture(game.png.zombie_right_texture);
+	SDL_DestroyTexture(game.png.zombie_left_texture);
+}
+
 #undef main
 int main()
 {
@@ -675,15 +709,7 @@ int main()
 
 	Game game;
 
-	game.png.player_up_rect.w = game.player.w;
-	game.png.player_down_rect.w = game.player.w;
-	game.png.player_right_rect.w = game.player.w;
-	game.png.player_left_rect.w = game.player.w;
-
-	game.png.zombie_up_rect.w = game.zombie->w;
-	game.png.zombie_down_rect.w = game.zombie->w;
-	game.png.zombie_right_rect.w = game.zombie->w;
-	game.png.zombie_left_rect.w = game.zombie->w;
+	pngRect(game);
 
 	while (game.loop.launched)
 	{
@@ -702,23 +728,7 @@ int main()
 		SDL_Delay(1000 / game.fps);
 	}
 
-	SDL_DestroyTexture(game.png.play_texture);
-	SDL_DestroyTexture(game.png.info_texture);
-	SDL_DestroyTexture(game.png.exit_texture);
-	SDL_DestroyTexture(game.png.menu_texture);
-	SDL_DestroyTexture(game.png.restart_texture);
-
-	SDL_DestroyTexture(game.png.player_up_texture);
-	SDL_DestroyTexture(game.png.player_down_texture);
-	SDL_DestroyTexture(game.png.player_right_texture);
-	SDL_DestroyTexture(game.png.player_left_texture);
-
-	SDL_DestroyTexture(game.png.bullet_texture);
-
-	SDL_DestroyTexture(game.png.zombie_up_texture);
-	SDL_DestroyTexture(game.png.zombie_down_texture);
-	SDL_DestroyTexture(game.png.zombie_right_texture);
-	SDL_DestroyTexture(game.png.zombie_left_texture);
+	destroyTexture(game);
 
 	deInit(0);
 }
