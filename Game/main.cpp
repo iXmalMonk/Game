@@ -178,6 +178,14 @@ struct Png {
 
 	SDL_Rect zombie_left_rect;
 	SDL_Texture* zombie_left_texture = loadTextureFromFile("png/zombie_left.png", &zombie_left_rect);
+
+	SDL_Rect pistol_rect;
+	SDL_Texture* pistol_texture = loadTextureFromFile("png/pistol.png", &pistol_rect);
+	SDL_Rect pistol_rect_dst = { 0, 0, 50, 25 };
+
+	SDL_Rect rifle_rect;
+	SDL_Texture* rifle_texture = loadTextureFromFile("png/rifle.png", &rifle_rect);
+	SDL_Rect rifle_rect_dst = { 0, 0, 50, 25 };
 };
 
 struct Time {
@@ -236,7 +244,7 @@ struct Pistol {
 	
 	int delay = 19;
 	
-	int damage = 25;
+	int damage = 100;
 
 	bool flag = true;
 };
@@ -283,6 +291,24 @@ struct Zombie {
 
 enum Weapon { pstl, rfl }; // pistol, rifle
 
+struct Bonus {
+	int x = 0;
+	int y = 0;
+	int rand = 11;
+
+	bool pistol = false;
+	bool life_pistol = false;
+	int time_life_pistol = 0;
+	int time_life_max_pistol = 10000;
+	int rand_index_pistol = 0;
+
+	bool rifle = false;
+	bool life_rifle = false;
+	int time_life_rifle = 0;
+	int time_life_max_rifle = 10000;
+	int rand_index_rifle = 1;
+};
+
 struct Game {
 	Loop loop;
 
@@ -300,7 +326,9 @@ struct Game {
 
 	Zombie zombie[MAX_ZOMBIE];
 
-	Weapon weapon = rfl;
+	Weapon weapon = pstl;
+
+	Bonus bonus;
 
 	SDL_Event event;
 
@@ -644,6 +672,21 @@ void logicZombie(Game& game)
 		{
 			//printf("zombie died\n");
 			game.zombie[i].life = false;
+
+			// bonus
+			if (rand() % game.bonus.rand == game.bonus.rand_index_pistol and !game.bonus.life_pistol)
+			{
+				game.bonus.pistol = true;
+				game.bonus.x = game.zombie[i].rect_dst.x;
+				game.bonus.y = game.zombie[i].rect_dst.y;
+			}
+			else if (rand() % game.bonus.rand == game.bonus.rand_index_rifle and !game.bonus.life_rifle)
+			{
+				game.bonus.rifle = true;
+				game.bonus.x = game.zombie[i].rect_dst.x;
+				game.bonus.y = game.zombie[i].rect_dst.y;
+			}
+			// bonus
 		}
 
 		if (game.zombie[i].life)
@@ -710,6 +753,72 @@ void drawZombie(Game game)
 	}
 }
 
+void createBonus(Game& game)
+{
+	if (game.bonus.pistol and !game.bonus.life_pistol)
+	{
+		game.png.pistol_rect_dst.x = game.bonus.x;
+		game.png.pistol_rect_dst.y = game.bonus.y;
+		game.bonus.life_pistol = true;
+		game.bonus.pistol = false;
+	}
+
+	if (game.bonus.rifle and !game.bonus.life_rifle)
+	{
+		game.png.rifle_rect_dst.x = game.bonus.x;
+		game.png.rifle_rect_dst.y = game.bonus.y;
+		game.bonus.life_rifle = true;
+		game.bonus.rifle = false;
+	}
+}
+
+void logicBonus(Game& game)
+{
+	if (game.bonus.life_pistol)
+	{
+		game.bonus.time_life_pistol += game.time.dlt;
+
+		if (game.player.rect_dst.x + game.player.rect_dst.w >= game.png.pistol_rect_dst.x and game.png.pistol_rect_dst.x >= game.player.rect_dst.x and
+			game.player.rect_dst.y + game.player.rect_dst.h >= game.png.pistol_rect_dst.y and game.png.pistol_rect_dst.y >= game.player.rect_dst.y)
+		{
+			game.weapon = pstl;
+			game.bonus.life_pistol = false;
+			game.bonus.time_life_pistol = 0;
+		}
+
+		if (game.bonus.time_life_pistol >= game.bonus.time_life_max_pistol)
+		{
+			game.bonus.life_pistol = false;
+			game.bonus.time_life_pistol = 0;
+		}
+	}
+
+	if (game.bonus.life_rifle)
+	{
+		game.bonus.time_life_rifle += game.time.dlt;
+
+		if (game.player.rect_dst.x + game.player.rect_dst.w >= game.png.rifle_rect_dst.x and game.png.rifle_rect_dst.x >= game.player.rect_dst.x and
+			game.player.rect_dst.y + game.player.rect_dst.h >= game.png.rifle_rect_dst.y and game.png.rifle_rect_dst.y >= game.player.rect_dst.y)
+		{
+			game.weapon = rfl;
+			game.bonus.life_rifle = false;
+			game.bonus.time_life_rifle = 0;
+		}
+
+		if (game.bonus.time_life_rifle >= game.bonus.time_life_max_rifle)
+		{
+			game.bonus.life_rifle = false;
+			game.bonus.time_life_rifle = 0;
+		}
+	}
+}
+
+void drawBonus(Game game)
+{
+	if (game.bonus.life_pistol) SDL_RenderCopy(renderer, game.png.pistol_texture, &game.png.pistol_rect, &game.png.pistol_rect_dst);
+	if (game.bonus.life_rifle) SDL_RenderCopy(renderer, game.png.rifle_texture, &game.png.rifle_rect, &game.png.rifle_rect_dst);
+}
+
 void playLoop(Game& game)
 {
 	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
@@ -724,11 +833,16 @@ void playLoop(Game& game)
 	createZombie(game);
 	logicZombie(game);
 
+	createBonus(game);
+	logicBonus(game);
+
 	drawPlayer(game);
 
 	drawBullets(game);
 
 	drawZombie(game);
+
+	drawBonus(game);
 }
 
 void pngRect(Game& game)
@@ -763,6 +877,9 @@ void destroyTexture(Game& game)
 	SDL_DestroyTexture(game.png.zombie_down_texture);
 	SDL_DestroyTexture(game.png.zombie_right_texture);
 	SDL_DestroyTexture(game.png.zombie_left_texture);
+
+	SDL_DestroyTexture(game.png.pistol_texture);
+	SDL_DestroyTexture(game.png.rifle_texture);
 }
 
 #undef main
