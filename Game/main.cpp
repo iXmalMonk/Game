@@ -310,6 +310,8 @@ struct Zombie {
 	int delay = 250;
 
 	int damage = 10;
+
+	int score = 1;
 };
 
 enum Weapon { pstl, rfl, lsr }; // pistol, rifle, laser
@@ -338,6 +340,11 @@ struct Bonus {
 	int rand_index_laser = 2;
 };
 
+struct Score {
+	int current_score = 0;
+	int max_score = 0;
+};
+
 struct Game {
 	Loop loop;
 
@@ -360,6 +367,8 @@ struct Game {
 	Weapon weapon = lsr;
 
 	Bonus bonus;
+
+	Score score;
 
 	SDL_Event event;
 
@@ -747,7 +756,9 @@ void logicZombie(Game& game)
 		{
 			//printf("zombie died\n");
 			game.zombie[i].life = false;
-
+			game.score.current_score += game.zombie->score;
+			system("cls");
+			printf("%i", game.score.current_score);
 			// bonus
 			if (rand() % game.bonus.rand == game.bonus.rand_index_pistol and !game.bonus.life_pistol)
 			{
@@ -772,8 +783,6 @@ void logicZombie(Game& game)
 
 		if (game.zombie[i].life)
 		{
-
-
 			if (game.zombie[i].rect_dst.y > game.player.rect_dst.y + game.player.h / 2 or
 				game.zombie[i].rect_dst.y + game.zombie->h / 2 < game.player.rect_dst.y or
 				game.zombie[i].rect_dst.x > game.player.rect_dst.x + game.player.w / 2 or
@@ -785,7 +794,7 @@ void logicZombie(Game& game)
 				game.zombie[i].alpha = atan2(game.player.rect_dst.y - game.zombie[i].rect_dst.y, game.player.rect_dst.x - game.zombie[i].rect_dst.x);
 				game.zombie[i].rect_dst.x += cos(game.zombie[i].alpha) * game.zombie->speed;
 				game.zombie[i].rect_dst.y += sin(game.zombie[i].alpha) * game.zombie->speed;
-
+								
 				dlt_x = dlt_x - game.zombie[i].rect_dst.x;
 				dlt_y = dlt_y - game.zombie[i].rect_dst.y;
 
@@ -798,7 +807,7 @@ void logicZombie(Game& game)
 			else if (delay == game.zombie->delay)
 			{
 				game.player.current_hp -= game.zombie->damage;
-				printf("%i\n", game.player.current_hp);
+				//printf("%i\n", game.player.current_hp);
 				delay = 0;
 			}
 			// player
@@ -1010,10 +1019,32 @@ void loop(Game& game)
 	if (game.loop.restart) restartLoop(game);
 }
 
+void saveScore(Game game)
+{
+	FILE* file;
+
+	if (fopen_s(&file, "score.bin", "wt") != 0) exit(1);
+
+	if (game.score.current_score > game.score.max_score) fwrite(&game.score.current_score, sizeof(int), 1, file);
+
+	fclose(file);
+}
+
+void loadScore(Game& game)
+{
+	FILE* file;
+
+	if (fopen_s(&file, "score.bin", "rt") != 0) exit(1);
+
+	fread(&game.score.max_score, sizeof(int), 1, file);
+
+	fclose(file);
+}
+
 #undef main
 int main()
 {
-	hideConsole(true);
+	hideConsole(false);
 
 	srand(time(NULL));
 
@@ -1022,6 +1053,9 @@ int main()
 	Game game;
 
 	pngRect(game);
+
+	//loadScore(game);
+	//printf("%i", game.score.max_score);
 
 	while (game.loop.launched)
 	{
@@ -1034,6 +1068,8 @@ int main()
 		SDL_RenderPresent(renderer);
 		SDL_Delay(1000 / game.fps);
 	}
+
+	//saveScore(game);
 
 	destroyTexture(game);
 
