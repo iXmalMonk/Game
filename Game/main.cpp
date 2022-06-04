@@ -8,6 +8,7 @@
 #define HEIGHT 1024
 
 #define MAX_BULLETS_FOR_PISTOL 15
+#define MAX_BULLETS_FOR_RIFLE 30
 #define MAX_ZOMBIE 100
 
 SDL_Window* window = NULL;
@@ -236,6 +237,18 @@ struct Pistol {
 	int delay = 19;
 	
 	int damage = 25;
+
+	bool flag = true;
+};
+
+struct Rifle {
+	Bullet bullet[MAX_BULLETS_FOR_RIFLE];
+
+	int speed = 30;
+
+	int delay = 10;
+
+	int damage = 35;
 };
 
 struct Zombie {
@@ -268,6 +281,8 @@ struct Zombie {
 	int damage = 10;
 };
 
+enum Weapon { pstl, rfl }; // pistol, rifle
+
 struct Game {
 	Loop loop;
 
@@ -281,7 +296,11 @@ struct Game {
 
 	Pistol pistol;
 
+	Rifle rifle;
+
 	Zombie zombie[MAX_ZOMBIE];
+
+	Weapon weapon = rfl;
 
 	SDL_Event event;
 
@@ -338,7 +357,11 @@ void events(Game& game)
 				game.loop.restart = false;
 				game.loop.play = true;
 			}
-			if (game.loop.play) game.mouse.left_button = true;
+			if (game.loop.play)
+			{
+				game.mouse.left_button = true;
+				game.pistol.flag = true;
+			}
 			break;
 		case SDL_MOUSEBUTTONUP:
 			if (game.loop.play) game.mouse.left_button = false;
@@ -494,6 +517,107 @@ void drawPlayer(Game game)
 	}
 }
 
+void createBullets(Game& game)
+{
+	static int delay = 0;
+
+	if (game.mouse.left_button and delay >= game.pistol.delay and game.pistol.flag and game.weapon == pstl)
+	{
+		for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
+			if (!game.pistol.bullet[i].life)
+			{
+				game.pistol.bullet[i].rect_dst.x = game.player.rect_dst.x + game.player.w / 2;
+				game.pistol.bullet[i].rect_dst.y = game.player.rect_dst.y + game.player.h / 2;
+				game.pistol.bullet[i].alpha = atan2(game.mouse.y - game.pistol.bullet[i].rect_dst.y, game.mouse.x - game.pistol.bullet[i].rect_dst.x);
+				game.pistol.bullet[i].life = true;
+				break;
+			}
+		delay = 0;
+		game.pistol.flag = false;
+	}
+
+	if (game.mouse.left_button and delay >= game.rifle.delay and game.weapon == rfl)
+	{
+		for (int i = 0; i < MAX_BULLETS_FOR_RIFLE; i++)
+			if (!game.rifle.bullet[i].life)
+			{
+				game.rifle.bullet[i].rect_dst.x = game.player.rect_dst.x + game.player.w / 2;
+				game.rifle.bullet[i].rect_dst.y = game.player.rect_dst.y + game.player.h / 2;
+				game.rifle.bullet[i].alpha = atan2(game.mouse.y - game.rifle.bullet[i].rect_dst.y, game.mouse.x - game.rifle.bullet[i].rect_dst.x);
+				game.rifle.bullet[i].life = true;
+				break;
+			}
+		delay = 0;
+	}
+
+	if (delay >= game.pistol.delay + game.rifle.delay ) delay = game.pistol.delay + game.rifle.delay;
+	else delay++;
+}
+
+void logicBullets(Game& game)
+{
+	for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
+	{
+		if (game.pistol.bullet[i].life)
+		{
+			game.pistol.bullet[i].rect_dst.x += cos(game.pistol.bullet[i].alpha) * game.pistol.speed;
+			game.pistol.bullet[i].rect_dst.y += sin(game.pistol.bullet[i].alpha) * game.pistol.speed;
+
+			if (game.pistol.bullet[i].rect_dst.x > WIDTH or game.pistol.bullet[i].rect_dst.y > HEIGHT or
+				game.pistol.bullet[i].rect_dst.x + game.pistol.bullet->w < 0 or game.pistol.bullet[i].rect_dst.y + game.pistol.bullet->h < 0) game.pistol.bullet[i].life = false;
+
+			// zombie
+			for (int j = 0; j < game.zombie->current; j++)
+			{
+				if (game.pistol.bullet[i].rect_dst.x > game.zombie[j].rect_dst.x and game.pistol.bullet[i].rect_dst.x < game.zombie[j].rect_dst.x + game.zombie->w and
+					game.pistol.bullet[i].rect_dst.y > game.zombie[j].rect_dst.y and game.pistol.bullet[i].rect_dst.y < game.zombie[j].rect_dst.y + game.zombie->h)
+				{
+					game.zombie[j].current_hp -= game.pistol.damage;
+					//printf("hit - %i\n", game.zombie[j].current_hp);
+					game.pistol.bullet[i].life = false;
+					break;
+				}
+			}
+			// zombie
+		}
+	}
+
+	for (int i = 0; i < MAX_BULLETS_FOR_RIFLE; i++)
+	{
+		if (game.rifle.bullet[i].life)
+		{
+			game.rifle.bullet[i].rect_dst.x += cos(game.rifle.bullet[i].alpha) * game.rifle.speed;
+			game.rifle.bullet[i].rect_dst.y += sin(game.rifle.bullet[i].alpha) * game.rifle.speed;
+
+			if (game.rifle.bullet[i].rect_dst.x > WIDTH or game.rifle.bullet[i].rect_dst.y > HEIGHT or
+				game.rifle.bullet[i].rect_dst.x + game.rifle.bullet->w < 0 or game.rifle.bullet[i].rect_dst.y + game.rifle.bullet->h < 0) game.rifle.bullet[i].life = false;
+
+			// zombie
+			for (int j = 0; j < game.zombie->current; j++)
+			{
+				if (game.rifle.bullet[i].rect_dst.x > game.zombie[j].rect_dst.x and game.rifle.bullet[i].rect_dst.x < game.zombie[j].rect_dst.x + game.zombie->w and
+					game.rifle.bullet[i].rect_dst.y > game.zombie[j].rect_dst.y and game.rifle.bullet[i].rect_dst.y < game.zombie[j].rect_dst.y + game.zombie->h)
+				{
+					game.zombie[j].current_hp -= game.rifle.damage;
+					//printf("hit - %i\n", game.zombie[j].current_hp);
+					game.rifle.bullet[i].life = false;
+					break;
+				}
+			}
+			// zombie
+		}
+	}
+}
+
+void drawBullets(Game game)
+{
+	for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
+		if (game.pistol.bullet[i].life) SDL_RenderCopy(renderer, game.png.bullet_texture, &game.png.bullet_rect, &game.pistol.bullet[i].rect_dst);
+
+	for (int i = 0; i < MAX_BULLETS_FOR_RIFLE; i++)
+		if (game.rifle.bullet[i].life) SDL_RenderCopy(renderer, game.png.bullet_texture, &game.png.bullet_rect, &game.rifle.bullet[i].rect_dst);
+}
+
 void createZombie(Game& game)
 {
 	for (int i = 0; i < game.zombie->current; i++)
@@ -586,63 +710,6 @@ void drawZombie(Game game)
 	}
 }
 
-void createBulletsForPistol(Game& game)
-{
-	static int delay = 0;
-
-	if (game.mouse.left_button and delay == game.pistol.delay)
-	{
-		for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
-			if (!game.pistol.bullet[i].life)
-			{
-				game.pistol.bullet[i].rect_dst.x = game.player.rect_dst.x + game.player.w / 2;
-				game.pistol.bullet[i].rect_dst.y = game.player.rect_dst.y + game.player.h / 2;
-				game.pistol.bullet[i].alpha = atan2(game.mouse.y - game.pistol.bullet[i].rect_dst.y, game.mouse.x - game.pistol.bullet[i].rect_dst.x);
-				game.pistol.bullet[i].life = true;
-				break;
-			}
-		delay = 0;
-	}
-
-	if (delay >= game.pistol.delay) delay = game.pistol.delay;
-	else delay++;
-}
-
-void logicBulletsForPistol(Game& game)
-{
-	for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
-	{
-		if (game.pistol.bullet[i].life)
-		{
-			game.pistol.bullet[i].rect_dst.x += cos(game.pistol.bullet[i].alpha) * game.pistol.speed;
-			game.pistol.bullet[i].rect_dst.y += sin(game.pistol.bullet[i].alpha) * game.pistol.speed;
-
-			if (game.pistol.bullet[i].rect_dst.x > WIDTH or game.pistol.bullet[i].rect_dst.y > HEIGHT or
-				game.pistol.bullet[i].rect_dst.x + game.pistol.bullet->w < 0 or game.pistol.bullet[i].rect_dst.y + game.pistol.bullet->h < 0) game.pistol.bullet[i].life = false;
-
-			// zombie
-			for (int j = 0; j < game.zombie->current; j++)
-			{
-				if (game.pistol.bullet[i].rect_dst.x > game.zombie[j].rect_dst.x and game.pistol.bullet[i].rect_dst.x < game.zombie[j].rect_dst.x + game.zombie->w and
-					game.pistol.bullet[i].rect_dst.y > game.zombie[j].rect_dst.y and game.pistol.bullet[i].rect_dst.y < game.zombie[j].rect_dst.y + game.zombie->h)
-				{
-					game.zombie[j].current_hp -= game.pistol.damage;
-					//printf("hit - %i\n", game.zombie[j].current_hp);
-					game.pistol.bullet[i].life = false;
-					break;
-				}
-			}
-			// zombie
-		}
-	}
-}
-
-void drawBulletsForPistol(Game game)
-{
-	for (int i = 0; i < MAX_BULLETS_FOR_PISTOL; i++)
-		if (game.pistol.bullet[i].life) SDL_RenderCopy(renderer, game.png.bullet_texture, &game.png.bullet_rect, &game.pistol.bullet[i].rect_dst);
-}
-
 void playLoop(Game& game)
 {
 	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
@@ -651,15 +718,15 @@ void playLoop(Game& game)
 	createPlayer(game);
 	logicPlayer(game);
 
-	createBulletsForPistol(game);
-	logicBulletsForPistol(game);
+	createBullets(game);
+	logicBullets(game);
 
 	createZombie(game);
 	logicZombie(game);
 
 	drawPlayer(game);
 
-	drawBulletsForPistol(game);
+	drawBullets(game);
 
 	drawZombie(game);
 }
@@ -701,7 +768,7 @@ void destroyTexture(Game& game)
 #undef main
 int main()
 {
-	hideConsole(false);
+	hideConsole(true);
 
 	srand(time(NULL));
 
