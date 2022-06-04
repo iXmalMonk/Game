@@ -9,6 +9,7 @@
 
 #define MAX_BULLETS_FOR_PISTOL 15
 #define MAX_BULLETS_FOR_RIFLE 30
+#define MAX_BULLETS_FOR_LASER 10
 #define MAX_ZOMBIE 100
 
 SDL_Window* window = NULL;
@@ -186,6 +187,12 @@ struct Png {
 	SDL_Rect rifle_rect;
 	SDL_Texture* rifle_texture = loadTextureFromFile("png/rifle.png", &rifle_rect);
 	SDL_Rect rifle_rect_dst = { 0, 0, 50, 25 };
+
+	SDL_Rect ininfo_rect;
+	SDL_Texture* ininfo_texture = loadTextureFromFile("png/ininfo.png", &ininfo_rect);
+
+	SDL_Rect laser_bullet_rect;
+	SDL_Texture* laser_bullet_texture = loadTextureFromFile("png/laser_bullet.png", &laser_bullet_rect);
 };
 
 struct Time {
@@ -244,7 +251,7 @@ struct Pistol {
 	
 	int delay = 19;
 	
-	int damage = 100;
+	int damage = 25;
 
 	bool flag = true;
 };
@@ -257,6 +264,18 @@ struct Rifle {
 	int delay = 10;
 
 	int damage = 35;
+};
+
+struct Laser {
+	Bullet bullet[MAX_BULLETS_FOR_LASER];
+
+	int speed = 45;
+	
+	int delay = 19;
+
+	int damage = 25;
+
+	bool flag = true;
 };
 
 struct Zombie {
@@ -289,7 +308,7 @@ struct Zombie {
 	int damage = 10;
 };
 
-enum Weapon { pstl, rfl }; // pistol, rifle
+enum Weapon { pstl, rfl, lsr }; // pistol, rifle, laser
 
 struct Bonus {
 	int x = 0;
@@ -324,9 +343,11 @@ struct Game {
 
 	Rifle rifle;
 
+	Laser laser;
+
 	Zombie zombie[MAX_ZOMBIE];
 
-	Weapon weapon = pstl;
+	Weapon weapon = lsr;
 
 	Bonus bonus;
 
@@ -389,6 +410,7 @@ void events(Game& game)
 			{
 				game.mouse.left_button = true;
 				game.pistol.flag = true;
+				game.laser.flag = true;
 			}
 			break;
 		case SDL_MOUSEBUTTONUP:
@@ -460,6 +482,7 @@ void infoLoop(Game game)
 	SDL_RenderClear(renderer);
 
 	SDL_RenderCopy(renderer, game.png.menu_texture, &game.png.menu_rect, &game.png.menu_rect_dst);
+	SDL_RenderCopy(renderer, game.png.ininfo_texture, &game.png.ininfo_rect, NULL);
 }
 
 void restartLoop(Game game)
@@ -578,7 +601,22 @@ void createBullets(Game& game)
 		delay = 0;
 	}
 
-	if (delay >= game.pistol.delay + game.rifle.delay ) delay = game.pistol.delay + game.rifle.delay;
+	if (game.mouse.left_button and delay >= game.laser.delay and game.laser.flag and game.weapon == lsr)
+	{
+		for (int i = 0; i < MAX_BULLETS_FOR_LASER; i++)
+			if (!game.laser.bullet[i].life)
+			{
+				game.laser.bullet[i].rect_dst.x = game.player.rect_dst.x + game.player.w / 2;
+				game.laser.bullet[i].rect_dst.y = game.player.rect_dst.y + game.player.h / 2;
+				game.laser.bullet[i].alpha = atan2(game.mouse.y - game.laser.bullet[i].rect_dst.y, game.mouse.x - game.laser.bullet[i].rect_dst.x);
+				game.laser.bullet[i].life = true;
+				break;
+			}
+		delay = 0;
+		game.laser.flag = false;
+	}
+
+	if (delay >= game.pistol.delay + game.rifle.delay + game.laser.delay ) delay = game.pistol.delay + game.rifle.delay + game.laser.delay;
 	else delay++;
 }
 
@@ -635,6 +673,30 @@ void logicBullets(Game& game)
 			// zombie
 		}
 	}
+
+	for (int i = 0; i < MAX_BULLETS_FOR_LASER; i++)
+	{
+		if (game.laser.bullet[i].life)
+		{
+			game.laser.bullet[i].rect_dst.x += cos(game.laser.bullet[i].alpha) * game.laser.speed;
+			game.laser.bullet[i].rect_dst.y += sin(game.laser.bullet[i].alpha) * game.laser.speed;
+
+			if (game.laser.bullet[i].rect_dst.x > WIDTH or game.laser.bullet[i].rect_dst.y > HEIGHT or
+				game.laser.bullet[i].rect_dst.x + game.laser.bullet->w < 0 or game.rifle.bullet[i].rect_dst.y + game.laser.bullet->h < 0) game.laser.bullet[i].life = false;
+
+			// zombie
+			for (int j = 0; j < game.zombie->current; j++)
+			{
+				if (game.laser.bullet[i].rect_dst.x > game.zombie[j].rect_dst.x and game.laser.bullet[i].rect_dst.x < game.zombie[j].rect_dst.x + game.zombie->w and
+					game.laser.bullet[i].rect_dst.y > game.zombie[j].rect_dst.y and game.laser.bullet[i].rect_dst.y < game.zombie[j].rect_dst.y + game.zombie->h)
+				{
+					game.zombie[j].current_hp -= game.laser.damage;
+					//printf("hit - %i\n", game.zombie[j].current_hp);
+				}
+			}
+			// zombie
+		}
+	}
 }
 
 void drawBullets(Game game)
@@ -644,6 +706,9 @@ void drawBullets(Game game)
 
 	for (int i = 0; i < MAX_BULLETS_FOR_RIFLE; i++)
 		if (game.rifle.bullet[i].life) SDL_RenderCopy(renderer, game.png.bullet_texture, &game.png.bullet_rect, &game.rifle.bullet[i].rect_dst);
+
+	for (int i = 0; i < MAX_BULLETS_FOR_LASER; i++)
+		if (game.laser.bullet[i].life) SDL_RenderCopy(renderer, game.png.laser_bullet_texture, &game.png.laser_bullet_rect, &game.laser.bullet[i].rect_dst);
 }
 
 void createZombie(Game& game)
@@ -880,6 +945,24 @@ void destroyTexture(Game& game)
 
 	SDL_DestroyTexture(game.png.pistol_texture);
 	SDL_DestroyTexture(game.png.rifle_texture);
+
+	SDL_DestroyTexture(game.png.ininfo_texture);
+	SDL_DestroyTexture(game.png.laser_bullet_texture);
+}
+
+void time(Game& game)
+{
+	game.time.nw = SDL_GetTicks();
+	game.time.dlt = game.time.nw - game.time.lst;
+	game.time.lst = game.time.nw;
+}
+
+void loop(Game& game)
+{
+	if (game.loop.menu) menuLoop(game);
+	if (game.loop.info) infoLoop(game);
+	if (game.loop.play) playLoop(game);
+	if (game.loop.restart) restartLoop(game);
 }
 
 #undef main
@@ -897,16 +980,11 @@ int main()
 
 	while (game.loop.launched)
 	{
-		game.time.nw = SDL_GetTicks();
-		game.time.dlt = game.time.nw - game.time.lst;
-		game.time.lst = game.time.nw;
+		time(game);
 
 		events(game);
 
-		if (game.loop.menu) menuLoop(game);
-		if (game.loop.info) infoLoop(game);
-		if (game.loop.play) playLoop(game);
-		if (game.loop.restart) restartLoop(game);
+		loop(game);
 
 		SDL_RenderPresent(renderer);
 		SDL_Delay(1000 / game.fps);
