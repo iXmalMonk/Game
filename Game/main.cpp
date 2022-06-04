@@ -168,6 +168,9 @@ struct Png {
 	SDL_Rect bullet_rect;
 	SDL_Texture* bullet_texture = loadTextureFromFile("png/bullet.png", &bullet_rect);
 
+	SDL_Rect laser_bullet_rect;
+	SDL_Texture* laser_bullet_texture = loadTextureFromFile("png/laser_bullet.png", &laser_bullet_rect);
+
 	SDL_Rect zombie_up_rect;
 	SDL_Texture* zombie_up_texture = loadTextureFromFile("png/zombie_up.png", &zombie_up_rect);
 
@@ -188,11 +191,12 @@ struct Png {
 	SDL_Texture* rifle_texture = loadTextureFromFile("png/rifle.png", &rifle_rect);
 	SDL_Rect rifle_rect_dst = { 0, 0, 50, 25 };
 
+	SDL_Rect laser_rect;
+	SDL_Texture* laser_texture = loadTextureFromFile("png/laser.png", &laser_rect);
+	SDL_Rect laser_rect_dst = { 0, 0, 50, 25 };
+
 	SDL_Rect ininfo_rect;
 	SDL_Texture* ininfo_texture = loadTextureFromFile("png/ininfo.png", &ininfo_rect);
-
-	SDL_Rect laser_bullet_rect;
-	SDL_Texture* laser_bullet_texture = loadTextureFromFile("png/laser_bullet.png", &laser_bullet_rect);
 };
 
 struct Time {
@@ -326,6 +330,12 @@ struct Bonus {
 	int time_life_rifle = 0;
 	int time_life_max_rifle = 10000;
 	int rand_index_rifle = 1;
+
+	bool laser = false;
+	bool life_laser = false;
+	int time_life_laser = 0;
+	int time_life_max_laser = 10000;
+	int rand_index_laser = 2;
 };
 
 struct Game {
@@ -751,6 +761,12 @@ void logicZombie(Game& game)
 				game.bonus.x = game.zombie[i].rect_dst.x;
 				game.bonus.y = game.zombie[i].rect_dst.y;
 			}
+			else if (rand() % game.bonus.rand == game.bonus.rand_index_laser and !game.bonus.life_laser)
+			{
+				game.bonus.laser = true;
+				game.bonus.x = game.zombie[i].rect_dst.x;
+				game.bonus.y = game.zombie[i].rect_dst.y;
+			}
 			// bonus
 		}
 
@@ -835,6 +851,14 @@ void createBonus(Game& game)
 		game.bonus.life_rifle = true;
 		game.bonus.rifle = false;
 	}
+
+	if (game.bonus.laser and !game.bonus.life_laser)
+	{
+		game.png.laser_rect_dst.x = game.bonus.x;
+		game.png.laser_rect_dst.y = game.bonus.y;
+		game.bonus.life_laser = true;
+		game.bonus.laser = false;
+	}
 }
 
 void logicBonus(Game& game)
@@ -876,12 +900,32 @@ void logicBonus(Game& game)
 			game.bonus.time_life_rifle = 0;
 		}
 	}
+
+	if (game.bonus.life_laser)
+	{
+		game.bonus.time_life_laser += game.time.dlt;
+
+		if (game.player.rect_dst.x + game.player.rect_dst.w >= game.png.laser_rect_dst.x and game.png.laser_rect_dst.x >= game.player.rect_dst.x and
+			game.player.rect_dst.y + game.player.rect_dst.h >= game.png.laser_rect_dst.y and game.png.laser_rect_dst.y >= game.player.rect_dst.y)
+		{
+			game.weapon = lsr;
+			game.bonus.life_laser = false;
+			game.bonus.time_life_laser = 0;
+		}
+
+		if (game.bonus.time_life_laser >= game.bonus.time_life_max_laser)
+		{
+			game.bonus.life_laser = false;
+			game.bonus.time_life_laser = 0;
+		}
+	}
 }
 
 void drawBonus(Game game)
 {
 	if (game.bonus.life_pistol) SDL_RenderCopy(renderer, game.png.pistol_texture, &game.png.pistol_rect, &game.png.pistol_rect_dst);
 	if (game.bonus.life_rifle) SDL_RenderCopy(renderer, game.png.rifle_texture, &game.png.rifle_rect, &game.png.rifle_rect_dst);
+	if (game.bonus.life_laser) SDL_RenderCopy(renderer, game.png.laser_texture, &game.png.laser_rect, &game.png.laser_rect_dst);
 }
 
 void playLoop(Game& game)
@@ -937,6 +981,7 @@ void destroyTexture(Game& game)
 	SDL_DestroyTexture(game.png.player_left_texture);
 
 	SDL_DestroyTexture(game.png.bullet_texture);
+	SDL_DestroyTexture(game.png.laser_bullet_texture);
 
 	SDL_DestroyTexture(game.png.zombie_up_texture);
 	SDL_DestroyTexture(game.png.zombie_down_texture);
@@ -945,9 +990,9 @@ void destroyTexture(Game& game)
 
 	SDL_DestroyTexture(game.png.pistol_texture);
 	SDL_DestroyTexture(game.png.rifle_texture);
+	SDL_DestroyTexture(game.png.laser_texture);
 
 	SDL_DestroyTexture(game.png.ininfo_texture);
-	SDL_DestroyTexture(game.png.laser_bullet_texture);
 }
 
 void time(Game& game)
