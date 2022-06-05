@@ -342,7 +342,13 @@ struct Bonus {
 
 struct Score {
 	int current_score = 0;
+	int time_current_score = 0;
+
 	int max_score = 0;
+	int time_max_score = 0;
+
+	int minutes = 0;
+	int seconds = 0;
 };
 
 struct Game {
@@ -374,6 +380,58 @@ struct Game {
 
 	const int fps = 60;
 };
+
+void resetScore(Game& game)
+{
+	game.score.current_score = 0;
+	game.score.time_current_score = 0;
+}
+
+void saveScore(Game& game)
+{
+	FILE* file;
+
+	if (fopen_s(&file, "score.bin", "wt") != 0) exit(1);
+
+	if (game.score.current_score > game.score.max_score) fwrite(&game.score.current_score, sizeof(int), 1, file);
+	else fwrite(&game.score.max_score, sizeof(int), 1, file);
+	if (game.score.time_current_score > game.score.time_max_score) fwrite(&game.score.time_current_score, sizeof(int), 1, file);
+	else fwrite(&game.score.time_max_score, sizeof(int), 1, file);
+
+	resetScore(game);
+
+	fclose(file);
+}
+
+void loadScore(Game& game)
+{
+	FILE* file;
+
+	if (fopen_s(&file, "score.bin", "rt") != 0) exit(1);
+
+	fread(&game.score.max_score, sizeof(int), 1, file);
+	fread(&game.score.time_max_score, sizeof(int), 1, file);
+
+	fclose(file);
+}
+
+void timeScore(Game& game)
+{
+	static int time = 0;
+	time += game.time.dlt;
+	if (time >= 1000)
+	{
+		game.score.time_current_score += 1;
+		//printf("%i\n", game.score.time_current_score);
+		time = 0;
+	}
+}
+
+void timeConvertation(Game& game)
+{
+	game.score.minutes = game.score.time_max_score / 60;
+	game.score.seconds = game.score.time_max_score - game.score.minutes * 60;
+}
 
 void events(Game& game)
 {
@@ -485,34 +543,6 @@ void events(Game& game)
 	}
 }
 
-void menuLoop(Game game)
-{
-	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-	SDL_RenderClear(renderer);
-
-	SDL_RenderCopy(renderer, game.png.play_texture, &game.png.play_rect, &game.png.play_rect_dst);
-	SDL_RenderCopy(renderer, game.png.info_texture, &game.png.info_rect, &game.png.info_rect_dst);
-	SDL_RenderCopy(renderer, game.png.exit_texture, &game.png.exit_rect, &game.png.exit_rect_dst);
-}
-
-void infoLoop(Game game)
-{
-	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-	SDL_RenderClear(renderer);
-
-	SDL_RenderCopy(renderer, game.png.menu_texture, &game.png.menu_rect, &game.png.menu_rect_dst);
-	SDL_RenderCopy(renderer, game.png.ininfo_texture, &game.png.ininfo_rect, NULL);
-}
-
-void restartLoop(Game game)
-{
-	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-	SDL_RenderClear(renderer);
-
-	SDL_RenderCopy(renderer, game.png.restart_texture, &game.png.restart_rect, &game.png.restart_rect_dst);
-	SDL_RenderCopy(renderer, game.png.menu_texture, &game.png.menu_rect, &game.png.menu_rect_dst);
-}
-
 void createPlayer(Game& game)
 {
 	if (!game.player.life)
@@ -528,10 +558,16 @@ void logicPlayer(Game& game)
 {
 	if (game.player.current_hp <= 0)
 	{
-		printf("player died\n");
+		//printf("player died\n");
 		game.player.life = false;
-		game.loop.play = false; // restart
-		game.loop.restart = true; // restart
+		
+		// restart
+		game.loop.play = false;
+		game.loop.restart = true;
+		// restart
+
+		saveScore(game);
+
 		for (int i = 0; i < game.zombie->current; i++) game.zombie[i].life = false; // zombie
 	}
 
@@ -756,9 +792,12 @@ void logicZombie(Game& game)
 		{
 			//printf("zombie died\n");
 			game.zombie[i].life = false;
+
+			// score
 			game.score.current_score += game.zombie->score;
-			system("cls");
-			printf("%i", game.score.current_score);
+			//printf("%i\n", game.score.current_score);
+			// score
+			
 			// bonus
 			if (rand() % game.bonus.rand == game.bonus.rand_index_pistol and !game.bonus.life_pistol)
 			{
@@ -937,6 +976,25 @@ void drawBonus(Game game)
 	if (game.bonus.life_laser) SDL_RenderCopy(renderer, game.png.laser_texture, &game.png.laser_rect, &game.png.laser_rect_dst);
 }
 
+void menuLoop(Game game)
+{
+	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+	SDL_RenderClear(renderer);
+
+	SDL_RenderCopy(renderer, game.png.play_texture, &game.png.play_rect, &game.png.play_rect_dst);
+	SDL_RenderCopy(renderer, game.png.info_texture, &game.png.info_rect, &game.png.info_rect_dst);
+	SDL_RenderCopy(renderer, game.png.exit_texture, &game.png.exit_rect, &game.png.exit_rect_dst);
+}
+
+void infoLoop(Game game)
+{
+	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+	SDL_RenderClear(renderer);
+
+	SDL_RenderCopy(renderer, game.png.menu_texture, &game.png.menu_rect, &game.png.menu_rect_dst);
+	SDL_RenderCopy(renderer, game.png.ininfo_texture, &game.png.ininfo_rect, NULL);
+}
+
 void playLoop(Game& game)
 {
 	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
@@ -961,6 +1019,32 @@ void playLoop(Game& game)
 	drawZombie(game);
 
 	drawBonus(game);
+
+	timeScore(game);
+}
+
+void restartLoop(Game game)
+{
+	SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+	SDL_RenderClear(renderer);
+
+	SDL_RenderCopy(renderer, game.png.restart_texture, &game.png.restart_rect, &game.png.restart_rect_dst);
+	SDL_RenderCopy(renderer, game.png.menu_texture, &game.png.menu_rect, &game.png.menu_rect_dst);
+}
+
+void loop(Game& game)
+{
+	if (game.loop.menu) menuLoop(game);
+	if (game.loop.info) infoLoop(game);
+	if (game.loop.play) playLoop(game);
+	if (game.loop.restart) restartLoop(game);
+}
+
+void time(Game& game)
+{
+	game.time.nw = SDL_GetTicks();
+	game.time.dlt = game.time.nw - game.time.lst;
+	game.time.lst = game.time.nw;
 }
 
 void pngRect(Game& game)
@@ -1004,43 +1088,6 @@ void destroyTexture(Game& game)
 	SDL_DestroyTexture(game.png.ininfo_texture);
 }
 
-void time(Game& game)
-{
-	game.time.nw = SDL_GetTicks();
-	game.time.dlt = game.time.nw - game.time.lst;
-	game.time.lst = game.time.nw;
-}
-
-void loop(Game& game)
-{
-	if (game.loop.menu) menuLoop(game);
-	if (game.loop.info) infoLoop(game);
-	if (game.loop.play) playLoop(game);
-	if (game.loop.restart) restartLoop(game);
-}
-
-void saveScore(Game game)
-{
-	FILE* file;
-
-	if (fopen_s(&file, "score.bin", "wt") != 0) exit(1);
-
-	if (game.score.current_score > game.score.max_score) fwrite(&game.score.current_score, sizeof(int), 1, file);
-
-	fclose(file);
-}
-
-void loadScore(Game& game)
-{
-	FILE* file;
-
-	if (fopen_s(&file, "score.bin", "rt") != 0) exit(1);
-
-	fread(&game.score.max_score, sizeof(int), 1, file);
-
-	fclose(file);
-}
-
 #undef main
 int main()
 {
@@ -1054,8 +1101,11 @@ int main()
 
 	pngRect(game);
 
-	//loadScore(game);
-	//printf("%i", game.score.max_score);
+	loadScore(game);
+
+	timeConvertation(game);
+
+	//printf("Score - %i\nTime - M: %i S: %i\n", game.score.max_score, game.score.minutes, game.score.seconds);
 
 	while (game.loop.launched)
 	{
@@ -1069,7 +1119,7 @@ int main()
 		SDL_Delay(1000 / game.fps);
 	}
 
-	//saveScore(game);
+	saveScore(game);
 
 	destroyTexture(game);
 
