@@ -12,6 +12,8 @@
 #define MAX_BULLETS_FOR_LASER 10
 #define MAX_ZOMBIE 100
 
+#define TEXT_SIZE 10
+
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
 
@@ -92,23 +94,6 @@ SDL_Texture* loadTextureFromFile(const char* filename, SDL_Rect* rect)
 	return texture;
 }
 
-SDL_Texture* loadTextureFromFont(const char* text, SDL_Rect* rect, int x, int y)
-{
-	TTF_Font* font = TTF_OpenFont("font.ttf", 100);
-
-	SDL_Color color = { 0, 0, 0 };
-
-	SDL_Surface* surface = TTF_RenderText_Blended(font, text, color);
-
-	SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-	*rect = { x, y, surface->w, surface->h };
-
-	SDL_FreeSurface(surface);
-
-	return texture;
-}
-
 void hideConsole(bool flag)
 {
 	HWND hide_console;
@@ -116,6 +101,8 @@ void hideConsole(bool flag)
 	hide_console = FindWindowA("ConsoleWindowClass", NULL);
 	ShowWindow(hide_console, !flag);
 }
+
+#pragma region Structs
 
 struct Loop {
 	bool launched = true;
@@ -349,6 +336,9 @@ struct Score {
 
 	int minutes = 0;
 	int seconds = 0;
+
+	int current_minutes = 0;
+	int current_seconds = 0;
 };
 
 struct Game {
@@ -370,7 +360,7 @@ struct Game {
 
 	Zombie zombie[MAX_ZOMBIE];
 
-	Weapon weapon = lsr;
+	Weapon weapon = pstl;
 
 	Bonus bonus;
 
@@ -379,7 +369,56 @@ struct Game {
 	SDL_Event event;
 
 	const int fps = 60;
+
+	TTF_Font* font = TTF_OpenFont("fonts/font.ttf", 25);
 };
+
+#pragma endregion
+
+#pragma region Functions
+
+int getTextSize(const char* text)
+{
+	int counter = 0;
+
+	while (text[counter] != '\0') counter++;
+
+	return counter;
+}
+
+void printValue(Game game, int value, int x, int y, int size)
+{
+	char text[TEXT_SIZE];
+
+	_itoa_s(value, text, TEXT_SIZE, 10);
+
+	SDL_Surface* text_surface = TTF_RenderText_Blended(game.font, text, { 0, 0, 0, 255 });
+
+	SDL_Rect rect = { x, y, 0.75 * getTextSize(text) * size , size };
+
+	SDL_Texture* text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+
+	SDL_RenderCopy(renderer, text_texture, NULL, &rect);
+
+	SDL_FreeSurface(text_surface);
+
+	SDL_DestroyTexture(text_texture);
+}
+
+void printText(Game game, const char* text, int x, int y, int size)
+{
+	SDL_Surface* text_surface = TTF_RenderText_Blended(game.font, text, { 0, 0, 0, 255 });
+
+	SDL_Rect rect = { x, y, 0.75 * getTextSize(text) * size, size };
+
+	SDL_Texture* text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+
+	SDL_RenderCopy(renderer, text_texture, NULL, &rect);
+
+	SDL_FreeSurface(text_surface);
+
+	SDL_DestroyTexture(text_texture);
+}
 
 void resetScore(Game& game)
 {
@@ -431,6 +470,12 @@ void timeConvertation(Game& game)
 {
 	game.score.minutes = game.score.time_max_score / 60;
 	game.score.seconds = game.score.time_max_score - game.score.minutes * 60;
+}
+
+void timeConvertationInRL(Game& game)
+{
+	game.score.current_minutes = game.score.time_current_score / 60;
+	game.score.current_seconds = game.score.time_current_score - game.score.current_minutes * 60;
 }
 
 void events(Game& game)
@@ -984,6 +1029,17 @@ void menuLoop(Game game)
 	SDL_RenderCopy(renderer, game.png.play_texture, &game.png.play_rect, &game.png.play_rect_dst);
 	SDL_RenderCopy(renderer, game.png.info_texture, &game.png.info_rect, &game.png.info_rect_dst);
 	SDL_RenderCopy(renderer, game.png.exit_texture, &game.png.exit_rect, &game.png.exit_rect_dst);
+
+	printText(game, "Max score:", 25, HEIGHT - 50, 25);
+	printValue(game, game.score.max_score, 225, HEIGHT - 50, 25);
+
+	printText(game, "Max time", 25, HEIGHT - 200, 25);
+
+	printText(game, "Minutes:", 25, HEIGHT - 150, 25);
+	printValue(game, game.score.minutes, 225, HEIGHT - 150, 25);
+
+	printText(game, "Seconds:", 25, HEIGHT - 100, 25);
+	printValue(game, game.score.seconds, 225, HEIGHT - 100, 25);
 }
 
 void infoLoop(Game game)
@@ -1020,7 +1076,23 @@ void playLoop(Game& game)
 
 	drawBonus(game);
 
+	printText(game, "HP:", 25, HEIGHT - 50, 25);
+	printValue(game, game.player.current_hp, 100, HEIGHT - 50, 25);
+
+	printText(game, "Weapon:", 175, HEIGHT - 50, 25);
+	if (game.weapon == pstl) printText(game, "pistol", 325, HEIGHT - 50, 25);
+	if (game.weapon == rfl) printText(game, "rifle", 325, HEIGHT - 50, 25);
+	if (game.weapon == lsr) printText(game, "laser", 325, HEIGHT - 50, 25);
+
+	printText(game, "Score:", 450, HEIGHT - 50, 25);
+	printValue(game, game.score.current_score, 575, HEIGHT - 50, 25);
+
+	printText(game, "Time - M:     S:", 700, HEIGHT - 50, 25);
+	printValue(game, game.score.current_minutes, 900, HEIGHT - 50, 25);
+	printValue(game, game.score.current_seconds, 1000, HEIGHT - 50, 25);
+
 	timeScore(game);
+	timeConvertationInRL(game);
 }
 
 void restartLoop(Game game)
@@ -1088,10 +1160,12 @@ void destroyTexture(Game& game)
 	SDL_DestroyTexture(game.png.ininfo_texture);
 }
 
+#pragma endregion
+
 #undef main
 int main()
 {
-	hideConsole(false);
+	hideConsole(true);
 
 	srand(time(NULL));
 
